@@ -59,9 +59,9 @@ class GlobalCSSModule {
     if (!settings.get('autoTheme')) return;
 
     const mt = window.matchMedia('(prefers-color-scheme: dark)');
-    mt.addEventListener("change", (event) => {
+    mt.addEventListener('change', (event) => {
       if (settings.get('autoTheme')) this.setTwitchTheme(event.matches);
-    })
+    });
     this.setTwitchTheme(mt.matches);
   }
 
