@@ -27,34 +27,44 @@ function Page(props) {
   }
 }
 
-const validateModal = () => window.innerWidth < 600 && window.location.pathname.endsWith('/chat');
+function isWindowSmallStandaloneChat() {
+  return window.innerWidth < 600 && window.location.pathname.endsWith('/chat');
+}
 
 function Window({setHandleOpen}) {
   const [page, setPage] = useState(PageTypes.CHAT_SETTINGS);
   const [open, setOpen] = useState(false);
-  const [fill, setFill] = useState(validateModal());
+  const [isSmallStandaloneChat, setStandaloneChat] = useState(isWindowSmallStandaloneChat());
 
   useEffect(() => {
     setHandleOpen(setOpen);
 
-    function validate() {
-      setFill(validateModal());
+    function checkStandaloneChat() {
+      setStandaloneChat(isWindowSmallStandaloneChat());
     }
 
-    window.addEventListener('resize', validate);
+    window.addEventListener('resize', checkStandaloneChat);
 
     return () => {
-      window.removeEventListener('resize', validate);
+      window.removeEventListener('resize', checkStandaloneChat);
     };
   }, []);
 
-  if (fill) {
+  if (isSmallStandaloneChat) {
     return <ChatWindow show={open} onHide={() => setOpen(false)} />;
   }
 
   return (
     <Modal show={open} onHide={() => setOpen(false)}>
-      <Sidenav value={page} onChange={(value) => setPage(value)} />
+      <Sidenav
+        value={page}
+        onChange={(value) => {
+          if (value == null) {
+            return;
+          }
+          setPage(value);
+        }}
+      />
       <Page page={page} onHide={() => setOpen(false)} />
     </Modal>
   );

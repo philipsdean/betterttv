@@ -12,9 +12,9 @@ import legacySubscribers from '../legacy_subscribers/index.js';
 import splitChat from '../split_chat/index.js';
 import {SettingIds, UsernameFlags} from '../../constants.js';
 import {hasFlag} from '../../utils/flags.js';
+import {getCurrentChannel} from '../../utils/channel.js';
 
 const EMOTE_STRIP_SYMBOLS_REGEX = /(^[~!@#$%^&*()]+|[~!@#$%^&*()]+$)/g;
-const MENTION_REGEX = /^@([a-zA-Z\d_]+)$/;
 const STEAM_LOBBY_JOIN_REGEX = /^steam:\/\/joinlobby\/\d+\/\d+\/\d+$/;
 const EMOTES_TO_CAP = ['567b5b520e984428652809b6'];
 const MAX_EMOTES_WHEN_CAPPED = 10;
@@ -25,7 +25,6 @@ const badgeTemplate = (url, description) => `
     <div class="bttv-tooltip bttv-tooltip--up" style="margin-bottom: 0.9rem;">${description}</div>
   </div>
 `;
-const mentionTemplate = (name) => `<span class="mentioning">@${html.escape(name)}</span>`;
 const steamLobbyJoinTemplate = (joinLink) => `<a href="${joinLink}">${joinLink}</a>`;
 
 function formatChatUser(message) {
@@ -118,7 +117,7 @@ class ChatModule {
       $badgesContainer.append(badgeTemplate(badge.svg, badge.description));
     }
 
-    const currentChannel = twitch.getCurrentChannel();
+    const currentChannel = getCurrentChannel();
     if (currentChannel && currentChannel.name === 'night' && legacySubscribers.hasSubscription(user.name)) {
       $badgesContainer.append(badgeTemplate(cdn.url('tags/subscriber.png'), 'Subscriber'));
     }
@@ -159,13 +158,6 @@ class ChatModule {
           continue;
         }
 
-        const mention = part.match(MENTION_REGEX);
-        if (part.length > 2 && part.charAt(0) === '@' && mention && mention[1]) {
-          parts[j] = mentionTemplate(mention[1]);
-          modified = true;
-          continue;
-        }
-
         const steamJoinLink = part.match(STEAM_LOBBY_JOIN_REGEX);
         if (steamJoinLink) {
           parts[j] = steamLobbyJoinTemplate(steamJoinLink[0]);
@@ -189,6 +181,7 @@ class ChatModule {
       if (modified) {
         // TODO: find a better way to do this (this seems most performant tho, only a single mutation vs multiple)
         const span = document.createElement('span');
+        span.className = 'bttv-message-container';
         span.innerHTML = parts.join(' ');
         node.parentNode.replaceChild(span, node);
       }
