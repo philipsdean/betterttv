@@ -1,5 +1,9 @@
 import $ from 'jquery';
+import cookies from 'cookies-js';
 import twitchAPI from './twitch-api.js';
+import debug from './debug.js';
+import {getCurrentUser, setCurrentUser} from './user.js';
+import {getCurrentChannel, setCurrentChannel} from './channel.js';
 
 const REACT_ROOT = '#root div';
 const CHAT_CONTAINER = 'section[data-test-selector="chat-room-component-layout"]';
@@ -8,6 +12,13 @@ const CHAT_LIST = '.chat-list,.chat-list--default,.chat-list--other';
 const PLAYER = '.video-player__container';
 const CLIPS_BROADCASTER_INFO = '.clips-broadcaster-info';
 const CHAT_MESSAGE_SELECTOR = '.chat-line__message';
+
+const PROFILE_IMAGE_GQL_QUERY = `
+query {
+    currentUser {
+        profileImageURL(width: 300)
+    }
+}`;
 
 const TMIActionTypes = {
   MESSAGE: 0,
@@ -57,7 +68,7 @@ const TMIActionTypes = {
   CHANNEL_POINTS_AWARD: 44,
 };
 
-function getReactInstance(element) {
+export function getReactInstance(element) {
   for (const key in element) {
     if (key.startsWith('__reactInternalInstance$')) {
       return element[key];
@@ -109,18 +120,36 @@ function searchReactChildren(node, predicate, maxDepth = 15, depth = 0) {
 }
 
 let chatClient;
-let currentUser;
-let currentChannel;
+let currentProfilePicture;
+
+const userCookie = cookies.get('twilight-user');
+if (userCookie) {
+  try {
+    const {authToken, id, login, displayName} = JSON.parse(userCookie);
+    twitchAPI.setAccessToken(authToken);
+    setCurrentUser({
+      provider: 'twitch',
+      id: id.toString(),
+      name: login,
+      displayName,
+    });
+  } catch (_) {}
+}
 
 export default {
-  setCurrentUser(accessToken, id, name, displayName) {
-    twitchAPI.setAccessToken(accessToken);
+  async getCurrentUserProfilePicture() {
+    if (currentProfilePicture != null) {
+      return currentProfilePicture;
+    }
 
-    currentUser = {
-      id: id.toString(),
-      name,
-      displayName,
-    };
+    try {
+      const {data} = await twitchAPI.graphqlQuery(PROFILE_IMAGE_GQL_QUERY);
+      currentProfilePicture = data.currentUser.profileImageURL;
+      return currentProfilePicture;
+    } catch (e) {
+      debug.log('failed to fetch twitch user profile', e);
+      return null;
+    }
   },
 
   updateCurrentChannel() {
@@ -158,7 +187,9 @@ export default {
       };
     }
 
-    currentChannel = rv;
+    if (rv != null) {
+      setCurrentChannel({provider: 'twitch', ...rv});
+    }
 
     return rv;
   },
@@ -166,14 +197,6 @@ export default {
   TMIActionTypes,
 
   getReactInstance,
-
-  getCurrentChannel() {
-    return currentChannel;
-  },
-
-  getCurrentUser() {
-    return currentUser;
-  },
 
   getConnectStore() {
     let store;
@@ -454,6 +477,8 @@ export default {
   },
 
   getCurrentUserIsOwner() {
+    const currentUser = getCurrentUser();
+    const currentChannel = getCurrentChannel();
     if (!currentUser || !currentChannel) return false;
     return currentUser.id === currentChannel.id;
   },

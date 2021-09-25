@@ -1,17 +1,18 @@
 import twemoji from 'twemoji';
 import blacklistedEmoji from '../../utils/emoji-blacklist.js';
-import cdn from '../../utils/cdn.js';
 
 import AbstractEmotes from './abstract-emotes.js';
 import Emote from './emote.js';
+import {EmoteCategories, EmoteProviders} from '../../constants.js';
+
 // file gets created during bundle
 // eslint-disable-next-line import/no-unresolved
 import emojiBySlug from './emojis-by-slug.json';
 
-const provider = {
-  id: 'bttv-emoji',
+const category = {
+  id: EmoteCategories.BETTERTTV_EMOJI,
+  provider: EmoteProviders.BETTERTTV,
   displayName: 'BetterTTV Emojis',
-  badge: cdn.url('tags/developer.png'),
 };
 
 function countEmojis(emoji) {
@@ -26,21 +27,32 @@ class Emojis extends AbstractEmotes {
   constructor() {
     super();
 
+    this.emotesByCategory = {};
     this.loadEmojis();
   }
 
-  get provider() {
-    return provider;
+  get category() {
+    return category;
+  }
+
+  getEmotesByCategory() {
+    return this.emotesByCategory;
   }
 
   loadEmojis() {
     Object.values(emojiBySlug)
       .filter((emoji) => blacklistedEmoji.indexOf(emoji.char) === -1 && countEmojis(emoji) === 1)
-      .forEach((emoji, index) => {
+      .forEach((emoji) => {
         let url;
 
         twemoji.parse(emoji.char, {
+          folder: 'svg',
+          ext: '.svg',
           callback: (icon, options) => {
+            if (icon.length === 0) {
+              return false;
+            }
+
             switch (icon) {
               case 'a9': // ©
               case 'ae': // ®
@@ -60,13 +72,24 @@ class Emojis extends AbstractEmotes {
 
         const code = `:${emoji.slug}:`;
         const emote = new Emote({
-          id: index,
-          provider: this.provider,
+          id: emoji.char,
+          category: this.category,
           code,
           images: {
             '1x': url,
           },
         });
+
+        if (!emoji.isAlternative) {
+          // eslint-disable-next-line no-prototype-builtins
+          let categoryEmotes = this.emotesByCategory[emoji.category];
+
+          if (categoryEmotes == null) {
+            categoryEmotes = [];
+            this.emotesByCategory[emoji.category] = categoryEmotes;
+          }
+          categoryEmotes.push(emote);
+        }
 
         this.emotes.set(emoji.char, emote);
         this.emotes.set(code, emote);

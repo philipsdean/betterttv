@@ -39,21 +39,30 @@ function convertEmojiToolkitCodePointToChar(codePoint) {
 
 function jsonTransform(emojis) {
   const result = {};
+
   for (const emojiData of Object.values(emojis)) {
     const char = convertEmojiToolkitCodePointToChar(emojiData.code_points.fully_qualified);
     const data = {
       char,
       slug: emojiData.shortname.replace(/:/g, ''),
+      category: emojiData.category,
     };
+
     result[data.slug] = data;
+
     for (const alternativeShortName of emojiData.shortname_alternates) {
       // :tf: is a legacy betterttv global emote
       if (alternativeShortName === ':tf:') {
         continue;
       }
-      result[alternativeShortName.replace(/:/g, '')] = data;
+
+      result[alternativeShortName.replace(/:/g, '')] = {
+        ...data,
+        isAlternative: true,
+      };
     }
   }
+
   return result;
 }
 
@@ -70,7 +79,7 @@ export default async (env, argv) => {
   return {
     devServer: {
       port: PORT,
-      allowedHosts: ['127.0.0.1', '.twitch.tv'],
+      allowedHosts: ['127.0.0.1', '.twitch.tv', '.youtube.com'],
       devMiddleware: {
         writeToDisk: true,
       },
@@ -124,7 +133,15 @@ export default async (env, argv) => {
           test: /(\.less|\.css)$/,
           use: [
             MiniCssExtractPlugin.loader,
-            'css-loader',
+            {
+              loader: 'css-loader',
+              options: {
+                modules: {
+                  auto: true,
+                  localIdentName: 'bttv-[name]__[local]-[hash:base64:5]',
+                },
+              },
+            },
             {
               loader: 'postcss-loader',
               options: {
@@ -193,7 +210,7 @@ export default async (env, argv) => {
         DEV_CDN_ENDPOINT: DEV_ENDPOINT,
         PROD_CDN_ENDPOINT: PROD_ENDPOINT,
         EXT_VER: version,
-        GIT_REV: git.long(),
+        GIT_REV: process.env.GIT_REV || git.long(),
         SENTRY_URL:
           process.env.SENTRY_URL || 'https://b289038a9b004560bcb58396066ee847@o23210.ingest.sentry.io/5730387',
         CDN_ENDPOINT,
