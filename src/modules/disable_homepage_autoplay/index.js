@@ -1,8 +1,9 @@
 import settings from '../../settings.js';
 import watcher from '../../watcher.js';
 import twitch from '../../utils/twitch.js';
-import {AutoPlayFlags, SettingIds} from '../../constants.js';
+import {AutoPlayFlags, PlatformTypes, SettingIds} from '../../constants.js';
 import {hasFlag} from '../../utils/flags.js';
+import {loadModuleForPlatforms} from '../../utils/modules.js';
 
 class DisableHomepageAutoplayModule {
   constructor() {
@@ -14,9 +15,14 @@ class DisableHomepageAutoplayModule {
     const currentPlayer = twitch.getCurrentPlayer();
     if (!currentPlayer) return;
 
+    const prevMuted = currentPlayer.isMuted();
+
+    currentPlayer.setMuted(true);
+
     const stopAutoplay = () => {
       setTimeout(() => {
         currentPlayer.pause();
+        currentPlayer.setMuted(prevMuted);
       }, 0);
       if (currentPlayer.emitter) {
         currentPlayer.emitter.removeListener('Playing', stopAutoplay);
@@ -34,4 +40,4 @@ class DisableHomepageAutoplayModule {
   }
 }
 
-export default new DisableHomepageAutoplayModule();
+export default loadModuleForPlatforms([PlatformTypes.TWITCH, () => new DisableHomepageAutoplayModule()]);

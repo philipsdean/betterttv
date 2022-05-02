@@ -1,18 +1,37 @@
-import React from 'react';
-// eslint-disable-next-line import/extensions, import/no-unresolved
-import './settings/*';
-import Panel from 'rsuite/lib/Panel/index.js';
-import Icon from 'rsuite/lib/Icon/index.js';
-import InputGroup from 'rsuite/lib/InputGroup/index.js';
-import AutoComplete from 'rsuite/lib/AutoComplete/index.js';
-import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
-import {faSearch} from '@fortawesome/free-solid-svg-icons/faSearch';
+import React, {useState, useEffect} from 'react';
+import Panel from 'rsuite/Panel';
+import {Icon} from '@rsuite/icons';
+import InputGroup from 'rsuite/InputGroup';
+import AutoComplete from 'rsuite/AutoComplete';
+import * as faSearch from '@fortawesome/free-solid-svg-icons/faSearch';
+import FontAwesomeSvgIcon from '../../../common/components/FontAwesomeSvgIcon.jsx';
 
-import {Components} from './Store.jsx';
+let cachedSettings = null;
 
-const settings = Object.values(Components).sort((a, b) => a.name.localeCompare(b.name));
+async function loadSettings() {
+  if (cachedSettings != null) {
+    return cachedSettings;
+  }
+
+  const {Components} = await import('./Store.jsx');
+  cachedSettings = Object.values(Components).sort((a, b) => a.name.localeCompare(b.name));
+
+  return cachedSettings;
+}
+
+function useSettingsState() {
+  const [settings, setSettings] = useState([]);
+
+  useEffect(() => {
+    loadSettings().then(setSettings);
+  }, []);
+
+  return settings;
+}
 
 export function Settings({search, category}) {
+  const settings = useSettingsState();
+
   const searchedSettings =
     search.length === 0
       ? settings.filter((setting) => setting.category === category).map((setting) => setting.render())
@@ -29,6 +48,7 @@ export function Settings({search, category}) {
 
 export function Search(props) {
   const {value, onChange, placeholder, ...restProps} = props;
+  const settings = useSettingsState();
 
   const auto = settings
     .filter((setting) => setting.keywords.join(' ').includes(value.toLowerCase()))
@@ -45,9 +65,7 @@ export function Search(props) {
         placeholder={placeholder}
       />
       <InputGroup.Addon>
-        <Icon>
-          <FontAwesomeIcon icon={faSearch} />
-        </Icon>
+        <Icon as={FontAwesomeSvgIcon} fontAwesomeIcon={faSearch} />
       </InputGroup.Addon>
     </InputGroup>
   );

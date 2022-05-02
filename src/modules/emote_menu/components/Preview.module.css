@@ -1,0 +1,35 @@
+.preview {
+  box-sizing: border-box;
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 8px;
+  align-items: center;
+  color: var(--bttv-rs-text-heading);
+}
+
+.content {
+  display: flex;
+  align-items: center;
+  column-gap: 8px;
+  height: 100%;
+}
+
+.emoteImage {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+}
+
+.emote {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.emoteCode {
+  font-weight: 800;
+}
+
+.emoteStatusIcon {
+  padding: 10px;
+}

@@ -1,23 +1,23 @@
 import React, {useRef, useState} from 'react';
 import {saveAs} from 'file-saver';
 
-import IconButton from 'rsuite/lib/IconButton/index.js';
-import PanelGroup from 'rsuite/lib/PanelGroup/index.js';
-import Panel from 'rsuite/lib/Panel/index.js';
-import Icon from 'rsuite/lib/Icon/index.js';
-import {faUpload} from '@fortawesome/free-solid-svg-icons/faUpload';
-import {faRedo} from '@fortawesome/free-solid-svg-icons/faRedo';
-import {faDownload} from '@fortawesome/free-solid-svg-icons/faDownload';
-import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
-import settings from '../../../settings.js';
+import IconButton from 'rsuite/IconButton';
+import PanelGroup from 'rsuite/PanelGroup';
+import Panel from 'rsuite/Panel';
+import {Icon} from '@rsuite/icons';
+import * as faUpload from '@fortawesome/free-solid-svg-icons/faUpload';
+import * as faRedo from '@fortawesome/free-solid-svg-icons/faRedo';
+import * as faDownload from '@fortawesome/free-solid-svg-icons/faDownload';
+import {SETTINGS_STORAGE_KEY} from '../../../settings.js';
 import storage from '../../../storage.js';
 import debug from '../../../utils/debug.js';
+import {loadLegacySettings} from '../../../utils/legacy-settings.js';
 import header from '../styles/header.module.css';
 import styles from '../styles/about.module.css';
-import {DefaultValues, SettingIds} from '../../../constants.js';
 import CloseButton from '../components/CloseButton.jsx';
+import FontAwesomeSvgIcon from '../../../common/components/FontAwesomeSvgIcon.jsx';
 
-function isJSON(string) {
+function loadJSON(string) {
   let json = null;
   try {
     json = JSON.parse(string);
@@ -45,41 +45,38 @@ function backupFile() {
   saveAs(new Blob([JSON.stringify(rv)], {type: 'application/json;charset=utf-8'}), 'bttv_settings.backup');
 }
 
-function About({onHide}) {
-  const fileImport = useRef(null);
+function About({onClose}) {
+  const fileImportRef = useRef(null);
   const [importing, setImporting] = useState(false);
   const [resetting, setResetting] = useState(false);
 
   async function importFile(target) {
     setImporting(true);
 
-    const data = await getDataURLFromUpload(target);
+    const data = loadJSON(await getDataURLFromUpload(target));
     if (data == null) {
       return;
     }
 
-    const settingsToImport = isJSON(data);
-    const keysToImport = Object.keys(settingsToImport);
     let importLegacy = true;
-    for (const key of keysToImport) {
+    const sanitizedData = {};
+    for (const key of Object.keys(data)) {
       const nonPrefixedKey = key.split('bttv_')[1];
-      storage.set(nonPrefixedKey, settingsToImport[key]);
-      if (nonPrefixedKey === 'settings') {
+      storage.set(nonPrefixedKey, data[key]);
+      sanitizedData[nonPrefixedKey] = data[key];
+      if (nonPrefixedKey === SETTINGS_STORAGE_KEY) {
         importLegacy = false;
       }
     }
     if (importLegacy) {
-      settings.importLegacySettings();
+      storage.set(SETTINGS_STORAGE_KEY, loadLegacySettings(sanitizedData));
     }
     setTimeout(() => window.location.reload(), 1000);
   }
 
   function resetDefault() {
     setResetting(true);
-
-    for (const id of Object.values(SettingIds)) {
-      settings.set(id, DefaultValues[id]);
-    }
+    storage.set(SETTINGS_STORAGE_KEY, null);
     setTimeout(() => window.location.reload(), 1000);
   }
 
@@ -92,8 +89,7 @@ function About({onHide}) {
             <a
               target="_blank"
               rel="noreferrer"
-              href="https://chrome.google.com/webstore/detail/betterttv/ajopnjidmegmdimjlfnijceegpefgped"
-            >
+              href="https://chrome.google.com/webstore/detail/betterttv/ajopnjidmegmdimjlfnijceegpefgped">
               Chrome Webstore
             </a>{' '}
             or{' '}
@@ -110,7 +106,7 @@ function About({onHide}) {
             <div className={styles.socials}>
               <ul>
                 <li>
-                  <p>EXPLORE</p>
+                  <p className={header.heading}>EXPLORE</p>
                 </li>
                 <li>
                   <a target="_blank" rel="noreferrer" href="https://betterttv.com/">
@@ -135,7 +131,7 @@ function About({onHide}) {
               </ul>
               <ul>
                 <li>
-                  <p>COMMUNITY</p>
+                  <p className={header.heading}>COMMUNITY</p>
                 </li>
                 <li>
                   <a target="_blank" rel="noreferrer" href="https://discord.gg/nightdev">
@@ -160,7 +156,7 @@ function About({onHide}) {
               </ul>
               <ul>
                 <li>
-                  <p>LEGAL</p>
+                  <p className={header.heading}>LEGAL</p>
                 </li>
                 <li>
                   <a target="_blank" rel="noreferrer" href="https://betterttv.com/terms">
@@ -182,41 +178,32 @@ function About({onHide}) {
                 appearance="primary"
                 onClick={backupFile}
                 disabled={resetting}
-                icon={
-                  <Icon>
-                    <FontAwesomeIcon icon={faDownload} />
-                  </Icon>
-                }
-              >
+                icon={<Icon as={FontAwesomeSvgIcon} fontAwesomeIcon={faDownload} />}>
                 Backup Settings
               </IconButton>
-              <input type="file" hidden ref={fileImport} onChange={({target}) => importFile(target)} />
+              <input type="file" hidden ref={fileImportRef} onChange={({target}) => importFile(target)} />
               <IconButton
                 className={styles.button}
                 appearance="primary"
-                onClick={() => fileImport.current.click()}
+                onClick={() => {
+                  const currentFileImportRef = fileImportRef.current;
+                  if (currentFileImportRef == null) {
+                    return;
+                  }
+                  currentFileImportRef.click();
+                }}
                 disabled={resetting}
                 loading={importing}
-                icon={
-                  <Icon>
-                    <FontAwesomeIcon icon={faUpload} />
-                  </Icon>
-                }
-              >
+                icon={<Icon as={FontAwesomeSvgIcon} fontAwesomeIcon={faUpload} />}>
                 Import Settings
               </IconButton>
               <IconButton
-                icon={
-                  <Icon>
-                    <FontAwesomeIcon icon={faRedo} />
-                  </Icon>
-                }
+                icon={<Icon as={FontAwesomeSvgIcon} fontAwesomeIcon={faRedo} />}
                 className={styles.button}
                 loading={resetting}
                 disabled={importing}
                 color="red"
-                onClick={resetDefault}
-              >
+                onClick={() => resetDefault()}>
                 Reset to Default
               </IconButton>
             </div>
@@ -227,7 +214,7 @@ function About({onHide}) {
         </PanelGroup>
       </div>
       <div className={header.header}>
-        <CloseButton onHide={onHide} className={header.closeButton} />
+        <CloseButton onClose={onClose} className={header.closeButton} />
       </div>
     </>
   );

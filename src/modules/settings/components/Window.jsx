@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import Modal from 'rsuite/lib/Modal/index.js';
+import Modal from 'rsuite/Modal';
 import Sidenav from './Sidenav.jsx';
 import About from '../pages/About.jsx';
 import ChatSettings from '../pages/ChatSettings.jsx';
@@ -8,6 +8,8 @@ import ChannelSettings from '../pages/ChannelSettings.jsx';
 import Changelog from '../pages/Changelog.jsx';
 import ChatWindow from './ChatWindow.jsx';
 import {PageTypes} from '../../../constants.js';
+import ThemeProvider from '../../../common/components/ThemeProvider.jsx';
+import {isStandaloneWindow} from '../../../utils/window.js';
 
 function Page(props) {
   const {page, ...restProps} = props;
@@ -28,7 +30,7 @@ function Page(props) {
 }
 
 function isWindowSmallStandaloneChat() {
-  return window.innerWidth < 600 && window.location.pathname.endsWith('/chat');
+  return window.innerWidth < 600 && isStandaloneWindow();
 }
 
 function Window({setHandleOpen}) {
@@ -51,22 +53,28 @@ function Window({setHandleOpen}) {
   }, []);
 
   if (isSmallStandaloneChat) {
-    return <ChatWindow show={open} onHide={() => setOpen(false)} />;
+    return (
+      <ThemeProvider>
+        <ChatWindow open={open} onClose={() => setOpen(false)} />
+      </ThemeProvider>
+    );
   }
 
   return (
-    <Modal show={open} onHide={() => setOpen(false)}>
-      <Sidenav
-        value={page}
-        onChange={(value) => {
-          if (value == null) {
-            return;
-          }
-          setPage(value);
-        }}
-      />
-      <Page page={page} onHide={() => setOpen(false)} />
-    </Modal>
+    <ThemeProvider>
+      <Modal open={open} onClose={() => setOpen(false)}>
+        <Sidenav
+          value={page}
+          onChange={(value) => {
+            if (value == null) {
+              return;
+            }
+            setPage(value);
+          }}
+        />
+        <Page page={page} onClose={() => setOpen(false)} />
+      </Modal>
+    </ThemeProvider>
   );
 }
 

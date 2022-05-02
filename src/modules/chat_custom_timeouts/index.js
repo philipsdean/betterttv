@@ -1,7 +1,9 @@
 import $ from 'jquery';
 import watcher from '../../watcher.js';
-import keyCodes from '../../utils/keycodes.js';
+import mouseButtons from '../../utils/mousebuttons.js';
 import twitch from '../../utils/twitch.js';
+import {PlatformTypes} from '../../constants.js';
+import {loadModuleForPlatforms} from '../../utils/modules.js';
 
 const CHAT_ROOM_SELECTOR = 'section[data-test-selector="chat-room-component-layout"]';
 const CHAT_LINE_SELECTOR = '.chat-line__message';
@@ -38,7 +40,7 @@ function setReason(type) {
 
 function handleTimeoutClick(e, messageId) {
   const $customTimeout = $(`#${CUSTOM_TIMEOUT_ID}`);
-  if (!$customTimeout.length || e.which === keyCodes.DOMVKCancel) return;
+  if (!$customTimeout.length || e.button === mouseButtons.RightClick) return;
 
   if ($customTimeout.is(':hover')) {
     let command;
@@ -162,4 +164,4 @@ class ChatCustomTimeoutsModule {
   }
 }
 
-export default new ChatCustomTimeoutsModule();
+export default loadModuleForPlatforms([PlatformTypes.TWITCH, () => new ChatCustomTimeoutsModule()]);

@@ -1,26 +1,28 @@
 import React, {useEffect, useRef} from 'react';
-import Icon from 'rsuite/lib/Icon/index.js';
-import InputGroup from 'rsuite/lib/InputGroup/index.js';
-import Input from 'rsuite/lib/Input/index.js';
-import IconButton from 'rsuite/lib/IconButton/index.js';
-import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
-import {faSearch} from '@fortawesome/free-solid-svg-icons/faSearch';
-import {faTimes} from '@fortawesome/free-solid-svg-icons/faTimes';
+import {Icon} from '@rsuite/icons';
+import InputGroup from 'rsuite/InputGroup';
+import Input from 'rsuite/Input';
+import IconButton from 'rsuite/IconButton';
+import * as faSearch from '@fortawesome/free-solid-svg-icons/faSearch';
+import * as faTimes from '@fortawesome/free-solid-svg-icons/faTimes';
+import FontAwesomeSvgIcon from '../../../common/components/FontAwesomeSvgIcon.jsx';
 
-function Header({value, onChange, onHide, selected, ...restProps}) {
+function Header({value, onChange, toggleWhisper, selected, ...props}) {
   const searchInputRef = useRef(null);
 
   useEffect(() => {
-    searchInputRef.current.focus();
+    const currentSearchInputRef = searchInputRef.current;
+    if (currentSearchInputRef == null) {
+      return;
+    }
+    currentSearchInputRef.focus();
   }, []);
 
   return (
-    <div {...restProps}>
+    <div {...props}>
       <InputGroup inside>
         <InputGroup.Addon>
-          <Icon>
-            <FontAwesomeIcon icon={faSearch} />
-          </Icon>
+          <Icon as={FontAwesomeSvgIcon} fontAwesomeIcon={faSearch} />
         </InputGroup.Addon>
         <Input
           placeholder={selected == null ? 'Search for Emotes' : selected.code}
@@ -30,13 +32,9 @@ function Header({value, onChange, onHide, selected, ...restProps}) {
         />
       </InputGroup>
       <IconButton
-        icon={
-          <Icon>
-            <FontAwesomeIcon icon={faTimes} />
-          </Icon>
-        }
+        icon={<Icon as={FontAwesomeSvgIcon} fontAwesomeIcon={faTimes} />}
         appearance="subtle"
-        onClick={onHide}
+        onClick={toggleWhisper}
       />
     </div>
   );
@@ -44,5 +42,8 @@ function Header({value, onChange, onHide, selected, ...restProps}) {
 
 export default React.memo(
   Header,
-  (oldProps, newProps) => oldProps.selected === newProps.selected && newProps.value === oldProps.value
+  (oldProps, newProps) =>
+    oldProps.selected === newProps.selected &&
+    newProps.value === oldProps.value &&
+    newProps.toggleWhisper === oldProps.toggleWhisper
 );

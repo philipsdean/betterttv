@@ -1,9 +1,10 @@
 import $ from 'jquery';
 import watcher from '../../watcher.js';
 import settings from '../settings/index.js';
-import highlightBlacklistKeywords from '../chat_highlight_blacklist_keywords/index.js';
 import chatFontSettings from '../chat_font_settings/index.js';
 import domObserver from '../../observers/dom.js';
+import {PlatformTypes} from '../../constants.js';
+import {loadModuleForPlatforms} from '../../utils/modules.js';
 
 const CHAT_SETTINGS_SELECTOR = '.chat-settings__content';
 const MOD_VIEW_CHAT_SETTINGS_SELECTOR =
@@ -16,12 +17,6 @@ const BTTV_CHAT_SETTINGS_CLASS = 'bttv-chat-settings';
 const CHAT_SETTINGS_TEMPLATE = `
   <div class="${BTTV_CHAT_SETTINGS_CLASS}">
     <div class="settingHeader"><p>BetterTTV</p></div>
-    <div class="settingRow">
-      <button borderradius="border-radius-medium" class="settingButton setBlacklistKeywords">Set Blacklist Keywords</button>
-    </div>
-    <div class="settingRow">
-      <button borderradius="border-radius-medium" class="settingButton setHighlightKeywords">Set Highlight Keywords</button>
-    </div>
     <div class="settingRow">
       <button borderradius="border-radius-medium" class="settingButton setFontFamily">Set Font</button>
     </div>
@@ -62,7 +57,6 @@ function getSettings() {
 class ChatSettingsModule {
   constructor() {
     watcher.on('load.chat', () => this.load());
-    this.renderSettings = this.renderSettings.bind(this);
   }
 
   load() {
@@ -109,12 +103,9 @@ class ChatSettingsModule {
       $('.chat-line__message, .channel-points-reward-line, .user-notice-line').hide();
     });
 
-    $settings.find('.setHighlightKeywords').click(highlightBlacklistKeywords.setHighlightKeywords);
-    $settings.find('.setBlacklistKeywords').click(highlightBlacklistKeywords.setBlacklistKeywords);
-
     $settings.find('.setFontFamily').click(chatFontSettings.setFontFamily);
     $settings.find('.setFontSize').click(chatFontSettings.setFontSize);
   }
 }
 
-export default new ChatSettingsModule();
+export default loadModuleForPlatforms([PlatformTypes.TWITCH, () => new ChatSettingsModule()]);

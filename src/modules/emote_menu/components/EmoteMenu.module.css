@@ -1,0 +1,23 @@
+.divider {
+  margin: 0px;
+}
+
+.header {
+  display: flex;
+  padding: 8px;
+  column-gap: 4px;
+}
+
+.contentContainer {
+  display: flex;
+}
+
+.content {
+  height: 300px;
+  width: 100%;
+}
+
+.emotes {
+  width: 100%;
+  padding: 0 8px;
+}

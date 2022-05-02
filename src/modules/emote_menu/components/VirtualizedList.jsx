@@ -1,6 +1,6 @@
 import classNames from 'classnames';
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import styles from '../styles/list.module.css';
+import styles from './VirtualizedList.module.css';
 
 function VirtualizedList(
   {className, totalRows, rowHeight, renderRow, windowHeight, stickyRows = [], onHeaderChange = () => {}},
@@ -14,12 +14,18 @@ function VirtualizedList(
     headerIndex: null,
   });
 
-  useEffect(() => onHeaderChange(data.headerIndex), [data.headerIndex]);
+  useEffect(() => {
+    onHeaderChange(data.headerIndex);
+  }, [data.headerIndex]);
 
   const wrapperRef = ref || useRef(null);
 
   const isInViewport = useCallback(() => {
-    const {scrollTop} = wrapperRef.current;
+    const currentWrapperRef = wrapperRef.current;
+    if (currentWrapperRef == null) {
+      return;
+    }
+    const {scrollTop} = currentWrapperRef;
     const scrollBottom = scrollTop + windowHeight;
 
     const startIndex = Math.floor(scrollTop / rowHeight);
@@ -52,13 +58,14 @@ function VirtualizedList(
   }, [totalRows, rowHeight, windowHeight, stickyRows]);
 
   useEffect(() => {
-    wrapperRef.current.addEventListener('scroll', isInViewport);
+    const currentWrapperRef = wrapperRef.current;
+    if (currentWrapperRef == null) {
+      return null;
+    }
+    currentWrapperRef.addEventListener('scroll', isInViewport);
     isInViewport();
     return () => {
-      if (wrapperRef.current == null) {
-        return;
-      }
-      wrapperRef.current.removeEventListener('scroll', isInViewport);
+      currentWrapperRef.removeEventListener('scroll', isInViewport);
     };
   }, [isInViewport]);
 
@@ -71,7 +78,6 @@ function VirtualizedList(
           style: {
             height: `${rowHeight}px`,
           },
-          className: styles.row,
         })
       ),
     [data.rows, renderRow]

@@ -1,19 +1,19 @@
 import React, {useRef, useEffect, useState} from 'react';
 
-import Table from 'rsuite/lib/Table/index.js';
-import Button from 'rsuite/lib/Button/index.js';
-import IconButton from 'rsuite/lib/IconButton/index.js';
-import Icon from 'rsuite/lib/Icon/index.js';
-import Dropdown from 'rsuite/lib/Dropdown/index.js';
-import Popover from 'rsuite/lib/Popover/index.js';
-import Whisper from 'rsuite/lib/Whisper/index.js';
+import Table from 'rsuite/Table';
+import Button from 'rsuite/Button';
+import IconButton from 'rsuite/IconButton';
+import {Icon} from '@rsuite/icons';
+import Dropdown from 'rsuite/Dropdown';
+import Popover from 'rsuite/Popover';
+import Whisper from 'rsuite/Whisper';
 
-import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
-import {faTimes} from '@fortawesome/free-solid-svg-icons/faTimes';
-import {faPlus} from '@fortawesome/free-solid-svg-icons/faPlus';
+import * as faTimes from '@fortawesome/free-solid-svg-icons/faTimes';
+import * as faPlus from '@fortawesome/free-solid-svg-icons/faPlus';
 
 import classNames from 'classnames';
 import styles from '../styles/table.module.css';
+import FontAwesomeSvgIcon from '../../../common/components/FontAwesomeSvgIcon.jsx';
 
 const {Column, HeaderCell, Cell} = Table;
 
@@ -27,8 +27,8 @@ export const Types = {
   DROPDOWN: 2,
 };
 
-function Menu({onSelect, options}) {
-  return (
+const MenuPopover = React.forwardRef(({options, onSelect, ...props}, ref) => (
+  <Popover {...props} ref={ref} full>
     <Dropdown.Menu onSelect={onSelect}>
       {options.map((option) => (
         <Dropdown.Item key={option.value} eventKey={option.value}>
@@ -36,24 +36,20 @@ function Menu({onSelect, options}) {
         </Dropdown.Item>
       ))}
     </Dropdown.Menu>
-  );
-}
-
-function MenuPopover({options, onSelect, ...rest}) {
-  return (
-    <Popover {...rest} full>
-      <Menu options={options} onSelect={onSelect} />
-    </Popover>
-  );
-}
+  </Popover>
+));
 
 function CustomWhisper(props) {
-  const trigger = useRef(null);
+  const triggerRef = useRef(null);
 
   function handleSelectMenu(eventKey) {
     const {onChange, rowData, dataKey} = props;
     onChange(rowData.id, dataKey, eventKey);
-    trigger.current.hide();
+
+    const currentTriggerRef = triggerRef.current;
+    if (currentTriggerRef != null) {
+      currentTriggerRef.hide();
+    }
   }
 
   const {children, options} = props;
@@ -62,9 +58,8 @@ function CustomWhisper(props) {
     <Whisper
       placement="autoVerticalStart"
       trigger="click"
-      triggerRef={trigger}
-      speaker={<MenuPopover options={options} onSelect={handleSelectMenu} />}
-    >
+      triggerRef={triggerRef}
+      speaker={<MenuPopover options={options} onSelect={(...args) => handleSelectMenu(...args)} />}>
       {children}
     </Whisper>
   );
@@ -74,10 +69,14 @@ function EditCell({rowData, dataKey, onChange, onMouseOver, onMouseLeave, onClic
   const wrapperRef = useRef(null);
 
   useEffect(() => {
+    wrapperRef.current.focus();
+
     function handleClickOutside(event) {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
-        onClick(rowData.id);
+      const currentWrapperRef = wrapperRef.current;
+      if (currentWrapperRef == null || currentWrapperRef.contains(event.target)) {
+        return;
       }
+      onClick(rowData.id);
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -88,6 +87,9 @@ function EditCell({rowData, dataKey, onChange, onMouseOver, onMouseLeave, onClic
       onPaste(event, rowData.id, dataKey);
     }
     const currentWrapperRef = wrapperRef.current;
+    if (currentWrapperRef == null) {
+      return null;
+    }
     currentWrapperRef.addEventListener('paste', handlePasteCallback);
     return () => currentWrapperRef.removeEventListener('paste', handlePasteCallback);
   }, [wrapperRef.current]);
@@ -136,9 +138,7 @@ function ActionCell({rowData, dataKey, onClick, ...props}) {
   return (
     <Cell {...props} className={styles.actionCell}>
       <Button className={styles.action} appearance="link" onClick={() => onClick(rowData.id)}>
-        <Icon>
-          <FontAwesomeIcon icon={faTimes} />
-        </Icon>
+        <Icon as={FontAwesomeSvgIcon} fontAwesomeIcon={faTimes} />
       </Button>
     </Cell>
   );
@@ -243,11 +243,11 @@ function EditTable({options, setValue, value, ...props}) {
                     <HeaderCell className={styles.header}>{key.header}</HeaderCell>
                     <CustomCell
                       dataKey={key.name}
-                      onChange={handleChange}
-                      onMouseOver={handleHoveringState}
-                      onMouseLeave={handleHoveringState}
-                      onClick={handleEditState}
-                      onPaste={handlePaste}
+                      onChange={(...args) => handleChange(...args)}
+                      onMouseOver={(...args) => handleHoveringState(...args)}
+                      onMouseLeave={(...args) => handleHoveringState(...args)}
+                      onClick={(...args) => handleEditState(...args)}
+                      onPaste={(...args) => handlePaste(...args)}
                     />
                   </Column>
                 );
@@ -261,8 +261,7 @@ function EditTable({options, setValue, value, ...props}) {
                           dataKey={key.name}
                           rowData={rowData}
                           options={key.options}
-                          onChange={handleChange}
-                        >
+                          onChange={(...args) => handleChange(...args)}>
                           <Button appearance="subtle">
                             {key.options.find((option) => option.value === rowData.type).name}
                           </Button>
@@ -277,21 +276,16 @@ function EditTable({options, setValue, value, ...props}) {
           })}
           <Column>
             <HeaderCell />
-            <ActionCell dataKey="id" onClick={handleDeleteState} />
+            <ActionCell dataKey="id" onClick={(...args) => handleDeleteState(...args)} />
           </Column>
         </Table>
       )}
       <IconButton
         appearance="primary"
-        onClick={handleAddEmptyRow}
+        onClick={() => handleAddEmptyRow()}
         loading={loading}
         className={styles.button}
-        icon={
-          <Icon>
-            <FontAwesomeIcon icon={faPlus} />
-          </Icon>
-        }
-      >
+        icon={<Icon as={FontAwesomeSvgIcon} fontAwesomeIcon={faPlus} />}>
         Add New
       </IconButton>
     </>

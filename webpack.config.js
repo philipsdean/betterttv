@@ -10,6 +10,7 @@ import {createRequire} from 'module';
 import globPkg from 'glob';
 import TerserPlugin from 'terser-webpack-plugin';
 import postcssUrl from 'postcss-url';
+// eslint-disable-next-line import/no-unresolved
 import got from 'got';
 import CssMinimizerPlugin from 'css-minimizer-webpack-plugin';
 import SentryWebpackPlugin from '@sentry/webpack-plugin';
@@ -92,13 +93,15 @@ export default async (env, argv) => {
           protocol: 'ws',
         },
       },
-      onAfterSetupMiddleware: ({app}) => {
-        app.get('*', (req, res) => {
+      setupMiddlewares: (middlewares) => {
+        middlewares.push((req, res) =>
           got
             .stream(`${PROD_ENDPOINT}${req.path}`)
             .on('error', () => res.sendStatus(404))
-            .pipe(res);
-        });
+            .pipe(res)
+        );
+
+        return middlewares;
       },
     },
     entry: {
@@ -114,7 +117,7 @@ export default async (env, argv) => {
     module: {
       rules: [
         {
-          test: /\.js$/,
+          test: /\.(js|jsx)$/,
           enforce: 'pre',
           loader: path.resolve('./dev/webpack-import-glob.cjs'),
         },
@@ -166,13 +169,6 @@ export default async (env, argv) => {
                 },
               },
             },
-            {
-              loader: 'string-replace-loader',
-              options: {
-                search: 'FONT-PATH-PLACEHOLDER',
-                replace: `${CDN_ENDPOINT}assets/fonts`,
-              },
-            },
           ],
         },
         {
@@ -202,9 +198,6 @@ export default async (env, argv) => {
         banner: (await fs.readFile('LICENSE')).toString(),
         entryOnly: true,
       }),
-      new webpack.DefinePlugin({
-        __RSUITE_CLASSNAME_PREFIX__: JSON.stringify('bttv-rs-'),
-      }),
       new EnvironmentPlugin({
         DEV_CDN_PORT: PORT,
         DEV_CDN_ENDPOINT: DEV_ENDPOINT,
@@ -214,16 +207,12 @@ export default async (env, argv) => {
         SENTRY_URL:
           process.env.SENTRY_URL || 'https://b289038a9b004560bcb58396066ee847@o23210.ingest.sentry.io/5730387',
         CDN_ENDPOINT,
-        RUN_ENV: '', // rsuite run environment breaks prod when not defined
       }),
       new optimize.LimitChunkCountPlugin({
         maxChunks: 1,
       }),
       new CopyPlugin({
-        patterns: [
-          {from: 'src/assets', to: './assets'},
-          {from: './node_modules/rsuite/src/styles/fonts', to: './assets/fonts'},
-        ],
+        patterns: [{from: 'src/assets', to: './assets'}],
       }),
       new CleanWebpackPlugin(),
       new RemovePlugin({

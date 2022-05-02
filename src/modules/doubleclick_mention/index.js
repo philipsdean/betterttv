@@ -1,9 +1,10 @@
 import $ from 'jquery';
 import watcher from '../../watcher.js';
 import twitch from '../../utils/twitch.js';
+import {PlatformTypes} from '../../constants.js';
+import {loadModuleForPlatforms} from '../../utils/modules.js';
 
 const CHAT_ROOM_SELECTOR = '.chat-list,.chat-list--default,.chat-list--other';
-const CHAT_TEXT_AREA = '.chat-input textarea';
 const CHAT_LINE_SELECTOR = '.chat-line__message';
 const USERNAME_SELECTORS =
   '.chat-line__message span.chat-author__display-name, .chat-line__message span[data-a-target="chat-message-mention"]';
@@ -36,13 +37,13 @@ class DoubleClickMentionModule {
         if (messageObj && $target.attr('data-a-target') !== 'chat-message-mention') {
           user = messageObj.user.userLogin;
         }
-        const $inputField = $(CHAT_TEXT_AREA);
-        if (!$inputField.length) return;
-        const input = $inputField.val().trim();
+        const chatInputValue = twitch.getChatInputValue();
+        if (chatInputValue == null) return;
+        const input = chatInputValue.trim();
         const output = input ? `${input} @${user} ` : `@${user}, `;
-        twitch.setInputValue($inputField, output, true);
+        twitch.setChatInputValue(output, true);
       });
   }
 }
 
-export default new DoubleClickMentionModule();
+export default loadModuleForPlatforms([PlatformTypes.TWITCH, () => new DoubleClickMentionModule()]);

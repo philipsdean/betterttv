@@ -2,6 +2,8 @@ import $ from 'jquery';
 import watcher from '../../watcher.js';
 import twitch from '../../utils/twitch.js';
 import ModeratorCard from './moderator-card.js';
+import {PlatformTypes} from '../../constants.js';
+import {loadModuleForPlatforms} from '../../utils/modules.js';
 
 let openModeratorCard;
 
@@ -24,7 +26,7 @@ class ChatModeratorCardsModule {
 
     let isOwner = false;
     let isModerator = false;
-    const userMessages = twitch.getChatMessages(targetUser.login);
+    const userMessages = twitch.getChatMessages(targetUser.id);
     if (userMessages.length) {
       const {message} = userMessages[userMessages.length - 1];
       isOwner = twitch.getUserIsOwnerFromTagsBadges(message.badges);
@@ -58,4 +60,4 @@ class ChatModeratorCardsModule {
   }
 }
 
-export default new ChatModeratorCardsModule();
+export default loadModuleForPlatforms([PlatformTypes.TWITCH, () => new ChatModeratorCardsModule()]);

@@ -2,6 +2,8 @@ import $ from 'jquery';
 import watcher from '../../watcher.js';
 import storage from '../../storage.js';
 import html from '../../utils/html.js';
+import {PlatformTypes} from '../../constants.js';
+import {loadModuleForPlatforms} from '../../utils/modules.js';
 
 const FONT_FAMILY_PROMPT = `Enter a font family for chat.
 
@@ -15,15 +17,6 @@ const GENERIC_FONT_FAMILIES = ['serif', 'sans-serif', 'monospace', 'cursive', 'f
 
 function encodeFontFamily(fontFamily) {
   return GENERIC_FONT_FAMILIES.includes(fontFamily) ? fontFamily : `"${html.escape(fontFamily)}", sans-serif`;
-}
-
-function changeFontSetting(promptBody, storageID) {
-  /* eslint-disable-next-line no-alert */
-  let keywords = prompt(promptBody, storage.get(storageID) || '');
-  if (keywords !== null) {
-    keywords = keywords.trim();
-    storage.set(storageID, keywords);
-  }
 }
 
 const styleTemplate = (fontFamily, fontSize) => `
@@ -46,11 +39,19 @@ function updateFontSettings() {
   $fontSettings.html(template);
 }
 
+function changeFontSetting(promptBody, storageID) {
+  /* eslint-disable-next-line no-alert */
+  let keywords = prompt(promptBody, storage.get(storageID) || '');
+  if (keywords !== null) {
+    keywords = keywords.trim();
+    storage.set(storageID, keywords);
+    updateFontSettings();
+  }
+}
+
 class ChatFontSettingsModule {
   constructor() {
     watcher.on('load', updateFontSettings);
-    storage.on('changed.chatFontFamily', updateFontSettings);
-    storage.on('changed.chatFontSize', updateFontSettings);
   }
 
   setFontFamily() {
@@ -62,4 +63,4 @@ class ChatFontSettingsModule {
   }
 }
 
-export default new ChatFontSettingsModule();
+export default loadModuleForPlatforms([PlatformTypes.TWITCH, () => new ChatFontSettingsModule()]);

@@ -3,33 +3,6 @@ import {setCurrentUser} from '../utils/user.js';
 import {setCurrentChannel} from '../utils/channel.js';
 
 export default function youtubeWatcher(watcher) {
-  let channelId;
-  function updateChannel({data}) {
-    const metaChannelId = document.querySelector('meta[itemprop="channelId"]');
-    let newChannelId = channelId;
-    if (metaChannelId != null) {
-      newChannelId = metaChannelId.getAttribute('content');
-    }
-
-    const liveChatItemContextMenuEndpointParams = data.contextMenuEndpoint?.liveChatItemContextMenuEndpoint?.params;
-    if (liveChatItemContextMenuEndpointParams != null) {
-      const decodedParams = atob(decodeURIComponent(atob(liveChatItemContextMenuEndpointParams)));
-      // this is proto but we don't know the schema and we don't wanna import a proto lib to decode this
-      // this is "probably" going to work ok.
-      // eslint-disable-next-line prefer-destructuring
-      newChannelId = decodedParams.split("*'\n\u0018")[1].split('\u0012\u000b')[0];
-    }
-
-    if (newChannelId === channelId) {
-      return;
-    }
-
-    channelId = newChannelId;
-    setCurrentChannel({provider: 'youtube', id: channelId});
-    watcher.emit('load.youtube');
-    watcher.emit('load.channel');
-  }
-
   function updateUser() {
     const inputRenderer = document.getElementsByTagName('yt-live-chat-message-input-renderer')[0];
     if (inputRenderer == null) {
@@ -40,13 +13,51 @@ export default function youtubeWatcher(watcher) {
       const user =
         inputRenderer.__data.data.sendButton.buttonRenderer.serviceEndpoint.sendLiveChatMessageEndpoint.actions[0]
           .addLiveChatTextMessageFromTemplateAction.template.liveChatTextMessageRenderer;
+      const userThumbnails = user.authorPhoto.thumbnails;
       setCurrentUser({
         provider: 'youtube',
         id: user.authorExternalChannelId,
         name: user.authorExternalChannelId,
         displayName: user.authorName.simpleText,
+        avatar: (userThumbnails[1] || userThumbnails[0]).url,
       });
+      watcher.emit('load.user');
     } catch (_) {}
+  }
+
+  let channelId;
+  function updateChannel({data}) {
+    let newChannelId = channelId;
+
+    const liveChatItemContextMenuEndpointParams = data?.contextMenuEndpoint?.liveChatItemContextMenuEndpoint?.params;
+    const sendLiveChatMessageEndpointParams =
+      data?.actionPanel?.liveChatMessageInputRenderer?.sendButton?.buttonRenderer?.serviceEndpoint
+        ?.sendLiveChatMessageEndpoint?.params;
+    const endpointParams = liveChatItemContextMenuEndpointParams || sendLiveChatMessageEndpointParams;
+    if (endpointParams != null) {
+      const decodedParams = atob(decodeURIComponent(atob(endpointParams)));
+      // this is proto but we don't know the schema and we don't wanna import a proto lib to decode this
+      // this is "probably" going to work ok.
+      // eslint-disable-next-line prefer-destructuring
+      newChannelId = decodedParams.split("*'\n\u0018")[1].split('\u0012\u000b')[0];
+    }
+
+    if (newChannelId == null) {
+      const metaChannelId = document.querySelector('meta[itemprop="channelId"]');
+      if (metaChannelId != null) {
+        newChannelId = metaChannelId.getAttribute('content');
+      }
+    }
+
+    if (newChannelId == null || newChannelId === channelId) {
+      return;
+    }
+
+    channelId = newChannelId;
+    setCurrentChannel({provider: 'youtube', id: channelId});
+    updateUser();
+    watcher.emit('load.youtube');
+    watcher.emit('load.channel');
   }
 
   function processMessageNode(node) {
@@ -82,11 +93,14 @@ export default function youtubeWatcher(watcher) {
     }
   );
 
+  domObserver.on('#live-chat-message-input', () => {
+    updateUser();
+    updateChannel(document.getElementsByTagName('yt-live-chat-renderer')[0]?.__data);
+  });
+
   watcher.on('emotes.updated', () => {
     for (const node of document.querySelectorAll('span#message')) {
       processMessageNode(node);
     }
   });
-
-  updateUser();
 }

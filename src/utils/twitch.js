@@ -5,20 +5,24 @@ import debug from './debug.js';
 import {getCurrentUser, setCurrentUser} from './user.js';
 import {getCurrentChannel, setCurrentChannel} from './channel.js';
 
-const REACT_ROOT = '#root div';
+const REACT_ROOT = '#root';
 const CHAT_CONTAINER = 'section[data-test-selector="chat-room-component-layout"]';
 const VOD_CHAT_CONTAINER = '.qa-vod-chat,.va-vod-chat';
 const CHAT_LIST = '.chat-list,.chat-list--default,.chat-list--other';
 const PLAYER = '.video-player__container';
 const CLIPS_BROADCASTER_INFO = '.clips-broadcaster-info';
 const CHAT_MESSAGE_SELECTOR = '.chat-line__message';
+const CHAT_INPUT = 'textarea[data-a-target="chat-input"], div[data-a-target="chat-input"]';
+const CHAT_WYSIWYG_INPUT_EDITOR = '.chat-wysiwyg-input__editor';
+const COMMUNITY_HIGHLIGHT = '.community-highlight';
 
-const PROFILE_IMAGE_GQL_QUERY = `
-query {
-    currentUser {
-        profileImageURL(width: 300)
+const USER_PROFILE_IMAGE_GQL_QUERY = `
+  query GetUserProfilePicture($userId: ID!) {
+    user(id: $userId) {
+      profileImageURL(width: 300)
     }
-}`;
+  }
+`;
 
 const TMIActionTypes = {
   MESSAGE: 0,
@@ -78,6 +82,16 @@ export function getReactInstance(element) {
   return null;
 }
 
+function getReactRoot(element) {
+  for (const key in element) {
+    if (key.startsWith('_reactRootContainer')) {
+      return element[key];
+    }
+  }
+
+  return null;
+}
+
 function searchReactParents(node, predicate, maxDepth = 15, depth = 0) {
   try {
     if (predicate(node)) {
@@ -120,7 +134,7 @@ function searchReactChildren(node, predicate, maxDepth = 15, depth = 0) {
 }
 
 let chatClient;
-let currentProfilePicture;
+const profilePicturesByUserId = {};
 
 const userCookie = cookies.get('twilight-user');
 if (userCookie) {
@@ -136,20 +150,43 @@ if (userCookie) {
   } catch (_) {}
 }
 
+export const SelectionTypes = {
+  START: 1,
+  MIDDLE: 2,
+  END: 3,
+};
+
 export default {
-  async getCurrentUserProfilePicture() {
-    if (currentProfilePicture != null) {
-      return currentProfilePicture;
+  async getUserProfilePicture(userId = null) {
+    const currentUser = getCurrentUser();
+    if (currentUser == null || currentUser.provider !== 'twitch') {
+      return null;
+    }
+
+    if (userId == null) {
+      userId = currentUser.id;
+    }
+
+    if (userId == null) {
+      return null;
+    }
+
+    let profilePicture = profilePicturesByUserId[userId];
+    if (profilePicture != null) {
+      return profilePicture;
     }
 
     try {
-      const {data} = await twitchAPI.graphqlQuery(PROFILE_IMAGE_GQL_QUERY);
-      currentProfilePicture = data.currentUser.profileImageURL;
-      return currentProfilePicture;
+      const {data} = await twitchAPI.graphqlQuery(USER_PROFILE_IMAGE_GQL_QUERY, {userId});
+      profilePicture = data.user.profileImageURL;
     } catch (e) {
       debug.log('failed to fetch twitch user profile', e);
       return null;
     }
+
+    profilePicturesByUserId[userId] = profilePicture;
+
+    return profilePicture;
   },
 
   updateCurrentChannel() {
@@ -202,13 +239,26 @@ export default {
     let store;
     try {
       const node = searchReactChildren(
-        getReactInstance($(REACT_ROOT)[0]),
+        getReactRoot($(REACT_ROOT)[0])._internalRoot.current,
         (n) => n.pendingProps && n.pendingProps.value && n.pendingProps.value.store
       );
       store = node.pendingProps.value.store;
     } catch (_) {}
 
     return store;
+  },
+
+  getAutocompleteStateNode() {
+    let node;
+    try {
+      node = searchReactParents(
+        getReactInstance($(CHAT_WYSIWYG_INPUT_EDITOR)[0]),
+        (n) => n?.stateNode?.providers != null,
+        30
+      );
+    } catch (_) {}
+
+    return node;
   },
 
   getClipsBroadcasterInfo() {
@@ -257,7 +307,7 @@ export default {
 
     try {
       const node = searchReactChildren(
-        getReactInstance($(REACT_ROOT)[0]),
+        getReactRoot($(REACT_ROOT)[0])._internalRoot.current,
         (n) => n.stateNode && n.stateNode.join && n.stateNode.client,
         1000
       );
@@ -303,6 +353,11 @@ export default {
 
   getCurrentEmotes() {
     let currentEmotes;
+
+    if (currentEmotes != null) {
+      return currentEmotes;
+    }
+
     try {
       const node = searchReactParents(
         getReactInstance($(CHAT_CONTAINER)[0]),
@@ -312,7 +367,7 @@ export default {
           n.stateNode.props.emoteSetsData &&
           n.stateNode.props.emoteSetsData.emoteMap
       );
-      currentEmotes = node.stateNode.props.emoteSetsData.emoteMap;
+      currentEmotes = node.stateNode.props.emoteSetsData;
     } catch (_) {}
 
     return currentEmotes;
@@ -483,22 +538,134 @@ export default {
     return currentUser.id === currentChannel.id;
   },
 
-  setInputValue($inputField, msg, focus = false) {
-    $inputField.val(msg);
-    const inputField = $inputField[0];
-    inputField.dispatchEvent(new Event('input', {bubbles: true}));
-    const instance = getReactInstance(inputField);
-    if (!instance) return;
-    const props = instance.memoizedProps;
-    if (props && props.onChange) {
-      props.onChange({target: inputField});
+  getChatInput(element = null) {
+    let chatInput;
+    try {
+      chatInput = searchReactParents(
+        getReactInstance(element || $(CHAT_INPUT)[0]),
+        (n) => n.memoizedProps && n.memoizedProps.componentType != null && n.memoizedProps.value != null
+      );
+    } catch (_) {}
+
+    return chatInput;
+  },
+
+  getChatInputEditor(element = null) {
+    let chatInputEditor;
+    try {
+      chatInputEditor = searchReactParents(
+        getReactInstance(element || $(CHAT_INPUT)[0]),
+        (n) => n.stateNode?.state?.slateEditor != null
+      );
+    } catch (_) {}
+
+    return chatInputEditor?.stateNode;
+  },
+
+  getChatInputValue() {
+    const element = $(CHAT_INPUT)[0];
+
+    // deprecated
+    const {value: currentValue} = element;
+    if (currentValue != null) {
+      return currentValue;
     }
-    if (focus) {
-      $inputField.focus();
+
+    const chatInput = this.getChatInput(element);
+    if (chatInput == null) {
+      return null;
+    }
+
+    return chatInput.memoizedProps.value;
+  },
+
+  setChatInputValue(text, shouldFocus = true) {
+    const element = $(CHAT_INPUT)[0];
+
+    // deprecated
+    const {value: currentValue, selectionStart} = element;
+    if (currentValue != null) {
+      element.value = text;
+      element.dispatchEvent(new Event('input', {bubbles: true}));
+
+      const instance = getReactInstance(element);
+      if (instance) {
+        const props = instance.memoizedProps;
+        if (props && props.onChange) {
+          props.onChange({target: element});
+        }
+      }
+
+      const selectionEnd = selectionStart + text.length;
+      element.setSelectionRange(selectionEnd, selectionEnd);
+
+      if (shouldFocus) {
+        element.focus();
+      }
+      return;
+    }
+
+    const chatInput = this.getChatInput(element);
+    if (chatInput == null) {
+      return;
+    }
+
+    chatInput.memoizedProps.value = text;
+    chatInput.memoizedProps.setInputValue(text);
+    chatInput.memoizedProps.onValueUpdate(text);
+
+    if (shouldFocus) {
+      const chatInputEditor = this.getChatInputEditor(element);
+      if (chatInputEditor != null) {
+        chatInputEditor.focus();
+        chatInputEditor.setSelectionRange(text.length);
+      }
     }
   },
 
-  getChatMessages(name = null) {
+  getChatInputSelection() {
+    const element = $(CHAT_INPUT)[0];
+
+    // deprecated
+    const {value: currentValue, selectionStart} = element;
+    if (currentValue != null) {
+      if (selectionStart === 0) {
+        return SelectionTypes.START;
+      }
+      if (selectionStart < currentValue.length) {
+        return SelectionTypes.MIDDLE;
+      }
+      return SelectionTypes.END;
+    }
+
+    const chatInputEditor = this.getChatInputEditor(element)?.state?.slateEditor;
+    if (chatInputEditor == null || chatInputEditor.selection == null) {
+      return SelectionTypes.MIDDLE;
+    }
+
+    const {focus} = chatInputEditor.selection;
+    if (focus == null) {
+      return SelectionTypes.MIDDLE;
+    }
+
+    const [childIndex, childPartIndex] = focus.path;
+    if (childIndex === 0 && childPartIndex === 0 && focus.offset === 0) {
+      return SelectionTypes.START;
+    }
+
+    const maxChildIndex = chatInputEditor.children.length - 1;
+    const maxChildPartIndex = chatInputEditor.children[maxChildIndex].children.length - 1;
+    const maxChildPart = chatInputEditor.children[maxChildIndex].children[maxChildPartIndex];
+    const maxChildPartOffset =
+      maxChildPart.children != null ? maxChildPart.children.length - 1 : (maxChildPart.text || '').length;
+    if (childIndex === maxChildIndex && childPartIndex === maxChildPartIndex && focus.offset === maxChildPartOffset) {
+      return SelectionTypes.END;
+    }
+
+    return SelectionTypes.MIDDLE;
+  },
+
+  getChatMessages(providerId = null) {
     let messages = Array.from($(CHAT_MESSAGE_SELECTOR))
       .reverse()
       .map((element) => ({
@@ -507,10 +674,23 @@ export default {
         outerHTML: element.outerHTML,
       }));
 
-    if (name) {
-      messages = messages.filter(({message}) => message && message.user && message.user.userLogin === name);
+    if (providerId) {
+      messages = messages.filter(({message}) => message && message.user && message.user.userID === providerId);
     }
 
     return messages;
+  },
+
+  getCommunityHighlight() {
+    let highlight;
+    try {
+      const node = searchReactParents(
+        getReactInstance($(COMMUNITY_HIGHLIGHT)[0]),
+        (n) => n.memoizedProps?.highlight?.event != null
+      );
+      highlight = node.memoizedProps.highlight;
+    } catch (e) {}
+
+    return highlight;
   },
 };

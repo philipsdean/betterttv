@@ -6,18 +6,12 @@ import html from '../../utils/html.js';
 import cdn from '../../utils/cdn.js';
 import {escapeRegExp} from '../../utils/regex.js';
 import {computeKeywords, KeywordTypes} from '../../utils/keywords.js';
-import {SettingIds} from '../../constants.js';
+import {PlatformTypes, SettingIds} from '../../constants.js';
 import {getCurrentUser} from '../../utils/user.js';
-
-const BLACKLIST_KEYWORD_PROMPT = `Type some blacklist keywords. Messages containing keywords will be filtered from your chat.
-
-Use spaces in the field to specify multiple keywords. Place {} around a set of words to form a phrase, <> inside the {} to use exact search, and () around a single word to specify a username. Wildcards (*) are supported.`;
-const HIGHLIGHT_KEYWORD_PROMPT = `Type some highlight keywords. Messages containing keywords will turn red to get your attention.
-
-Use spaces in the field to specify multiple keywords. Place {} around a set of words to form a phrase, <> inside the {} to use exact search, and () around a single word to specify a username. Wildcards (*) are supported.`;
+import {loadModuleForPlatforms} from '../../utils/modules.js';
 
 const CHAT_LIST_SELECTOR =
-  '.chat-list .chat-scrollable-area__message-container,.chat-list--default .chat-scrollable-area__message-container,.chat-list--other .chat-scrollable-area__message-container';
+  '.chat-list .chat-scrollable-area__message-container,.chat-list--default .chat-scrollable-area__message-container,.chat-list--other .chat-scrollable-area__message-container,.video-chat div[data-test-selector="video-chat-message-list-wrapper"]';
 const VOD_CHAT_FROM_SELECTOR = '.video-chat__message-author';
 const VOD_CHAT_MESSAGE_SELECTOR = 'div[data-test-selector="comment-message-selector"]';
 const VOD_CHAT_MESSAGE_EMOTE_SELECTOR = '.chat-line__message--emote';
@@ -38,15 +32,6 @@ const pinnedHighlightTemplate = ({timestamp, from, message}) => `
     <span class="message">${html.escape(message)}</span>
   </div>
 `;
-
-function changeKeywords(promptBody, storageID) {
-  // eslint-disable-next-line no-alert
-  alert(
-    `${
-      storageID === 'highlightKeywords' ? 'Highlight keywords' : 'Blacklist keywords'
-    } has been moved to the settings menu, please navigate there to update your keywords.`
-  );
-}
 
 let loadTime = 0;
 let blacklistKeywords = [];
@@ -215,14 +200,6 @@ class ChatHighlightBlacklistKeywordsModule {
     loadTime = Date.now();
   }
 
-  setBlacklistKeywords() {
-    changeKeywords(BLACKLIST_KEYWORD_PROMPT, 'blacklistKeywords');
-  }
-
-  setHighlightKeywords() {
-    changeKeywords(HIGHLIGHT_KEYWORD_PROMPT, 'highlightKeywords');
-  }
-
   onMessage($message, {user, timestamp, messageParts}) {
     const from = user.userLogin;
     const message = messageTextFromAST(messageParts);
@@ -241,7 +218,10 @@ class ChatHighlightBlacklistKeywordsModule {
       if (settings.get(SettingIds.HIGHLIGHT_FEEDBACK)) {
         this.handleHighlightSound();
       }
-      if (timestamp > loadTime) this.pinHighlight({from, message, date});
+
+      if (timestamp > loadTime) {
+        this.pinHighlight({from, message, date});
+      }
     }
   }
 
@@ -261,6 +241,12 @@ class ChatHighlightBlacklistKeywordsModule {
 
     if (fromContainsKeyword(highlightUsers, from) || messageContainsKeyword(highlightKeywords, from, messageContent)) {
       this.markHighlighted($message);
+
+      if (settings.get(SettingIds.HIGHLIGHT_FEEDBACK)) {
+        this.handleHighlightSound();
+      }
+
+      this.pinHighlight({from, message: messageContent, date: new Date()});
     }
   }
 
@@ -305,4 +291,4 @@ class ChatHighlightBlacklistKeywordsModule {
   }
 }
 
-export default new ChatHighlightBlacklistKeywordsModule();
+export default loadModuleForPlatforms([PlatformTypes.TWITCH, () => new ChatHighlightBlacklistKeywordsModule()]);

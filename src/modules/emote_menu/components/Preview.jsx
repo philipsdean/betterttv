@@ -1,39 +1,29 @@
 import React from 'react';
-import Icon from 'rsuite/lib/Icon/index.js';
-import IconButton from 'rsuite/lib/IconButton/index.js';
-import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
-import {faStar} from '@fortawesome/free-solid-svg-icons/faStar';
-import styles from '../styles/preview.module.css';
-import {createSrcSet} from '../../../utils/image.js';
+import styles from './Preview.module.css';
+import Icons from './Icons.jsx';
+import emoteMenuViewStore from '../../../common/stores/emote-menu-view-store.js';
+import Emote from '../../../common/components/Emote.jsx';
 
-export default function PreviewEmote({emote, isFavorite}) {
+export default function Preview({emote}) {
   if (emote == null) return null;
+
+  let icon = null;
+  if (emote.metadata != null && emote.metadata.isLocked()) {
+    icon = Icons.LOCK;
+  } else if (emoteMenuViewStore.hasFavorite(emote)) {
+    icon = Icons.STAR;
+  }
 
   return (
     <div className={styles.preview} key={emote.code}>
       <div className={styles.content}>
-        <div className={styles.emoji}>
-          <img
-            alt={emote.name}
-            className={styles.emoteImage}
-            srcSet={createSrcSet(emote.images, ['2x', '4x'])}
-            src={emote.images['2x'] || emote.images['1x']}
-          />
-        </div>
+        <Emote className={styles.emoteImage} emote={emote} />
         <div>
           <div className={styles.emoteCode}>{emote.code}</div>
           <div>from {emote.category.displayName}</div>
         </div>
       </div>
-      {isFavorite ? (
-        <IconButton
-          icon={
-            <Icon>
-              <FontAwesomeIcon icon={faStar} />
-            </Icon>
-          }
-        />
-      ) : null}
+      <div className={styles.emoteStatusIcon}>{icon}</div>
     </div>
   );
 }

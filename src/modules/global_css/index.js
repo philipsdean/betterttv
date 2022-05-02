@@ -1,24 +1,16 @@
 import $ from 'jquery';
 import cdn from '../../utils/cdn.js';
 import extension from '../../utils/extension.js';
-import settings from '../../settings.js';
 import watcher from '../../watcher.js';
-import twitch from '../../utils/twitch.js';
-import {SettingIds} from '../../constants.js';
-
-const TWITCH_THEME_CHANGED_DISPATCH_TYPE = 'core.ui.THEME_CHANGED';
-const TWITCH_THEME_STORAGE_KEY = 'twilight.theme';
-const TwitchThemes = {
-  LIGHT: 0,
-  DARK: 1,
-};
-
-let connectStore;
+import {PlatformTypes} from '../../constants.js';
+import {getPlatform} from '../../utils/window.js';
+import {loadModuleForPlatforms} from '../../utils/modules.js';
 
 class GlobalCSSModule {
   constructor() {
     watcher.on('load', () => this.branding());
     this.branding();
+
     settings.on(`changed.${SettingIds.DARKENED_MODE}`, (value) => this.setTwitchTheme(value));
 
     this.loadTwitchThemeObserver();
@@ -60,9 +52,20 @@ class GlobalCSSModule {
         settings.set('darkenedMode', isDarkMode, false, true);
       }
     });
+  
+    loadModuleForPlatforms(
+      [PlatformTypes.TWITCH, () => import('./twitch.js')],
+      [PlatformTypes.YOUTUBE, () => import('./youtube.js')]
+    );
   }
 
   loadGlobalCSS() {
+    // TODO: this is a crazy hack to enable youtube-specific rsuite overrides
+    // we should find a better way
+    if (getPlatform() === PlatformTypes.YOUTUBE) {
+      $('body').toggleClass('bttv-youtube', true);
+    }
+
     return new Promise((resolve) => {
       const css = document.createElement('link');
       css.setAttribute('href', extension.url('betterttv.css', true));

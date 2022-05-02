@@ -31,7 +31,6 @@ const Icons = {
 const MODERATOR_CARD_DISPLAY_NAME_SELECTOR = '.viewer-card-header__display-name h4';
 const MODERATOR_CARD_OVERLAY_SELECTOR = '.viewer-card-header__overlay';
 const MODERATOR_CARD_ACTIONS_SELECTOR = 'button[data-test-selector="ban-button"]';
-const CHAT_INPUT_SELECTOR = 'textarea[data-a-target="chat-input"]';
 
 const moderatorActionButtonTemplate = (command, duration, tooltipText, buttonText) => `
   <div class="bttv-tooltip-wrapper">
@@ -97,7 +96,7 @@ class ModeratorCard {
   }
 
   close() {
-    $('button[data-test-selector="close-viewer-card"]').click();
+    $('button[data-test-selector="close-viewer-card-button"]').click();
     this.cleanup();
     this.onClose();
   }
@@ -129,9 +128,27 @@ class ModeratorCard {
     const $overlay = this.$element.find(MODERATOR_CARD_OVERLAY_SELECTOR);
     if ($overlay.find('.bttv-moderator-card-user-stats').length) return;
 
+    const query = `
+      query GetChannel($userId: ID!) {
+        user(id: $userId) {
+          createdAt,
+          profileViewCount,
+          followers(first: 1) {
+            totalCount
+          }
+        }
+      }
+    `;
+
     twitchAPI
-      .get(`channels/${this.user.id}`)
-      .then(({views, followers, created_at: createdAt}) => userStatsTemplate(views, followers, createdAt))
+      .graphqlQuery(query, {userId: this.user.id})
+      .then(
+        ({
+          data: {
+            user: {profileViewCount, followers, createdAt},
+          },
+        }) => userStatsTemplate(profileViewCount, followers.totalCount, createdAt)
+      )
       .then((statsHTML) => $(statsHTML).appendTo($overlay));
   }
 
@@ -189,10 +206,10 @@ class ModeratorCard {
 
   onKeyDown(e) {
     if (e.ctrlKey || e.metaKey || e.shiftKey) return false;
-    if ($('input, textarea, select').is(':focus')) return false;
+    if ($('input, textarea, select, div[data-a-target="chat-input"]').is(':focus')) return false;
 
-    const keyCode = e.keyCode || e.which;
-    if (keyCode === keyCodes.Esc) {
+    const keyCode = e.key;
+    if (keyCode === keyCodes.Escape) {
       return this.close();
     }
 
@@ -231,9 +248,7 @@ class ModeratorCard {
       this.close();
     } else if (keyCode === keyCodes.W) {
       e.preventDefault();
-      const $chatInput = $(CHAT_INPUT_SELECTOR);
-      $chatInput.val(`${Commands.WHISPER} ${this.user.name} `);
-      $chatInput.focus();
+      twitch.setChatInputValue(`${Commands.WHISPER} ${this.user.name} `);
       this.close();
     }
     return true;

@@ -1,12 +1,14 @@
 import $ from 'jquery';
 import settings from '../../settings.js';
 import watcher from '../../watcher.js';
-import twitch from '../../utils/twitch.js';
+import twitch, {SelectionTypes} from '../../utils/twitch.js';
 import keyCodes from '../../utils/keycodes.js';
 import emotes from '../emotes/index.js';
-import {SettingIds} from '../../constants.js';
+import {ChatFlags, PlatformTypes, SettingIds} from '../../constants.js';
+import {loadModuleForPlatforms} from '../../utils/modules.js';
+import {hasFlag} from '../../utils/flags.js';
 
-const CHAT_INPUT_SELECTOR = '.chat-input textarea';
+const CHAT_INPUT_SELECTOR = 'textarea[data-a-target="chat-input"], div[data-a-target="chat-input"]';
 const AUTOCOMPLETE_SUGGESTIONS_SELECTOR = 'div[data-a-target="autocomplete-balloon"]';
 
 function normalizedStartsWith(word, prefix) {
@@ -53,20 +55,20 @@ class ChatTabcompletionModule {
   }
 
   onKeydown(e, includeUsers = true) {
-    const keyCode = e.keyCode || e.which;
+    const keyCode = e.key;
     if (e.ctrlKey) return;
 
-    const $inputField = $(e.target);
-    if (keyCode === keyCodes.Tab && $inputField.val().length > 0) {
+    const chatInputValue = twitch.getChatInputValue();
+    if (keyCode === keyCodes.Tab && chatInputValue.length > 0) {
       e.preventDefault();
 
       // First time pressing tab, split before and after the word
       if (this.tabTries === -1) {
-        const caretPos = $inputField[0].selectionStart;
-        const text = $inputField.val();
+        const caretPos = chatInputValue.length;
+        const text = chatInputValue;
 
-        const start = (/[:()\w]+$/.exec(text.substr(0, caretPos)) || {index: caretPos}).index;
-        const end = caretPos + (/^\w+/.exec(text.substr(caretPos)) || [''])[0].length;
+        const start = (/[:()\w]+$/.exec(text.slice(0, caretPos)) || {index: caretPos}).index;
+        const end = caretPos + (/^\w+/.exec(text.slice(caretPos)) || [''])[0].length;
         this.textSplit = [text.substring(0, start), text.substring(start, end), text.substring(end + 1)];
 
         // If there are no words in front of the caret, exit
@@ -87,57 +89,53 @@ class ChatTabcompletionModule {
         if (this.tabTries < 0) this.tabTries = this.suggestions.length - 1;
         if (!this.suggestions[this.tabTries]) return;
 
-        let cursorOffset = 0;
         if (this.textSplit[2].trim() === '') {
           this.textSplit[2] = ' ';
-          cursorOffset = 1;
         }
 
         // prevent twitch's tab completion from preventing text replacement
         e.stopImmediatePropagation();
 
-        const cursorPos = this.textSplit[0].length + this.suggestions[this.tabTries].length + cursorOffset;
-        twitch.setInputValue($inputField, this.textSplit[0] + this.suggestions[this.tabTries] + this.textSplit[2]);
-        $inputField[0].setSelectionRange(cursorPos, cursorPos);
+        twitch.setChatInputValue(this.textSplit[0] + this.suggestions[this.tabTries] + this.textSplit[2]);
       }
-    } else if (keyCode === keyCodes.Esc && this.tabTries >= 0) {
-      twitch.setInputValue($inputField, this.textSplit.join(''));
+    } else if (keyCode === keyCodes.Escape && this.tabTries >= 0) {
+      twitch.setChatInputValue(this.textSplit.join(''));
     } else if (keyCode !== keyCodes.Shift) {
       this.tabTries = -1;
     }
 
     // Message history
-    if (keyCode === keyCodes.UpArrow) {
-      if ($(AUTOCOMPLETE_SUGGESTIONS_SELECTOR).length > 0) return;
-      if ($inputField[0].selectionStart > 0) return;
-      if (this.historyPos + 1 === this.messageHistory.length) return;
+    if (hasFlag(settings.get(SettingIds.CHAT), ChatFlags.CHAT_MESSAGE_HISTORY)) {
+      if (keyCode === keyCodes.ArrowUp) {
+        if ($(AUTOCOMPLETE_SUGGESTIONS_SELECTOR).length > 0) return;
+        if (twitch.getChatInputSelection() !== SelectionTypes.START) return;
+        if (this.historyPos + 1 === this.messageHistory.length) return;
 
-      const unsentMsg = $inputField.val().trim();
-      if (this.historyPos < 0 && unsentMsg.length > 0) {
-        this.messageHistory.unshift(unsentMsg);
-        this.historyPos = 0;
-      }
-
-      const prevMsg = this.messageHistory[++this.historyPos];
-      twitch.setInputValue($inputField, prevMsg);
-      $inputField[0].setSelectionRange(0, 0);
-    } else if (keyCode === keyCodes.DownArrow) {
-      if ($(AUTOCOMPLETE_SUGGESTIONS_SELECTOR).length > 0) return;
-      if ($inputField[0].selectionStart < $inputField.val().length) return;
-      if (this.historyPos > 0) {
-        const prevMsg = this.messageHistory[--this.historyPos];
-        twitch.setInputValue($inputField, prevMsg);
-        $inputField[0].setSelectionRange(prevMsg.length, prevMsg.length);
-      } else {
-        const draft = $inputField.val().trim();
-        if (this.historyPos < 0 && draft.length > 0) {
-          this.messageHistory.unshift(draft);
+        const unsentMsg = chatInputValue.trim();
+        if (this.historyPos < 0 && unsentMsg.length > 0) {
+          this.messageHistory.unshift(unsentMsg);
+          this.historyPos = 0;
         }
-        this.historyPos = -1;
-        twitch.setInputValue($inputField, '');
+
+        const prevMsg = this.messageHistory[++this.historyPos];
+        twitch.setChatInputValue(prevMsg);
+      } else if (keyCode === keyCodes.ArrowDown) {
+        if ($(AUTOCOMPLETE_SUGGESTIONS_SELECTOR).length > 0) return;
+        if (twitch.getChatInputSelection() !== SelectionTypes.END) return;
+        if (this.historyPos > 0) {
+          const prevMsg = this.messageHistory[--this.historyPos];
+          twitch.setChatInputValue(prevMsg);
+        } else {
+          const draft = chatInputValue.trim();
+          if (this.historyPos < 0 && draft.length > 0) {
+            this.messageHistory.unshift(draft);
+          }
+          this.historyPos = -1;
+          twitch.setChatInputValue('');
+        }
+      } else if (this.historyPos >= 0) {
+        this.messageHistory[this.historyPos] = chatInputValue;
       }
-    } else if (this.historyPos >= 0) {
-      this.messageHistory[this.historyPos] = $inputField.val();
     }
   }
 
@@ -174,11 +172,11 @@ class ChatTabcompletionModule {
 
   getTwitchEmotes() {
     try {
-      return Object.keys(twitch.getCurrentEmotes());
+      return Object.keys(twitch.getCurrentEmotes().emoteMap);
     } catch (_) {
       return [];
     }
   }
 }
 
-export default new ChatTabcompletionModule();
+export default loadModuleForPlatforms([PlatformTypes.TWITCH, () => new ChatTabcompletionModule()]);

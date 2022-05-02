@@ -4,8 +4,9 @@ import watcher from '../../watcher.js';
 import settings from '../../settings.js';
 import domWatcher from '../../observers/dom.js';
 import twitch from '../../utils/twitch.js';
-import {AutoPlayFlags, SettingIds} from '../../constants.js';
+import {AutoPlayFlags, PlatformTypes, SettingIds} from '../../constants.js';
 import {hasFlag} from '../../utils/flags.js';
+import {loadModuleForPlatforms} from '../../utils/modules.js';
 
 const VIDEO_PLAYER_SELECTOR = '.video-player__container';
 const CANCEL_VOD_RECOMMENDATION_SELECTOR =
@@ -73,20 +74,20 @@ function togglePlayerCursor(hide) {
   $('body').toggleClass('bttv-hide-player-cursor', hide);
 }
 
-let previousVolume = null;
+let isMuted = false;
 document.addEventListener('visibilitychange', () => {
   if (!settings.get(SettingIds.MUTE_INVISIBLE_PLAYER)) return;
   // set raw video element volume to not edit persisted player volume state
   const video = $(VIDEO_PLAYER_SELECTOR).find('video')[0];
   if (!video) return;
   if (document.visibilityState === 'visible') {
-    if (previousVolume !== null) {
-      video.volume = previousVolume;
-      previousVolume = null;
+    if (isMuted) {
+      video.muted = false;
+      isMuted = false;
     }
   } else if (!document.pictureInPictureElement) {
-    previousVolume = video.volume;
-    video.volume = 0;
+    video.muted = true;
+    isMuted = true;
   }
 });
 
@@ -183,4 +184,4 @@ class VideoPlayerModule {
   }
 }
 
-export default new VideoPlayerModule();
+export default loadModuleForPlatforms([PlatformTypes.TWITCH, () => new VideoPlayerModule()]);
